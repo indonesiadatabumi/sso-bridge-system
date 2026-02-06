@@ -12,7 +12,7 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        PORT: 3000,
+        PORT: 20101,
       },
       error_file: '/home/work/sso-bridge-system/logs/sso-frontend-error.log',
       out_file: '/home/work/sso-bridge-system/logs/sso-frontend-out.log',
@@ -34,7 +34,7 @@ module.exports = {
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'production',
-        PORT: 3001,
+        PORT: 20102,
         DATABASE_URL: 'postgresql://postgres:Dbi%402020@66.96.229.251:20301/session_auth',
         REDIS_URL: 'redis://66.96.229.251:20901/0',
         JWT_SECRET: 'SSOBRIDGEDBISECRET2025',
