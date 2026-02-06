@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { Building2, Users, Key, Shield, Activity, Settings, Plus, Edit, Trash2, ExternalLink, Copy, CheckCircle, XCircle, Clock, Globe, Terminal } from 'lucide-react'
+import { Building2, Users, Key, Shield, Activity, Settings, Plus, Edit, Trash2, ExternalLink, Copy, CheckCircle, XCircle, Clock, Globe, Terminal, Play, Code } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 // Mock data - will be replaced with API calls
@@ -226,14 +226,6 @@ export default function SSODashboard() {
     toast({
       title: 'App deleted',
       description: 'App has been deleted successfully',
-    })
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    toast({
-      title: 'Copied to clipboard',
-      description: text,
     })
   }
 
