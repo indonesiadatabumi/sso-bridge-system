@@ -1,0 +1,29 @@
+{
+  "name": "sso-backend",
+  "version": "1.0.0",
+  "description": "SSO Session Management Backend API",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "hono": "^4.6.13",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8",
+    "uuid": "^11.0.3",
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,277 @@
+// SSO Session Management System
+// Multi-tenant SSO bridging system with support for normal login, SSO, and social media login
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT MODEL - Multi-tenant support
+// ============================================
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  domain      String?  @unique // Custom domain for tenant
+  logo        String?
+  description String?
+  isActive    Boolean  @default(true)
+  settings    Json?    // Tenant-specific settings
+
+  // Relations
+  apps           App[]
+  users          User[]
+  ssoProviders   SSOProviderConfig[]
+  sessions       Session[]
+  auditLogs      AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([domain])
+  @@index([isActive])
+}
+
+// ============================================
+// APP/CLIENT MODEL - Registered applications
+// ============================================
+model App {
+  id               String   @id @default(cuid())
+  tenantId         String
+  name             String
+  clientId         String   @unique // OAuth client_id
+  clientSecret     String   // OAuth client_secret (hashed)
+  redirectUris     String   // JSON array of redirect URIs
+  allowedOrigins   String?  // JSON array of allowed CORS origins
+  scopes           String   @default("openid profile email") // Default scopes
+  grantTypes       String   @default("authorization_code,refresh_token") // JSON array
+  tokenExpiration  Int      @default(3600) // Access token expiration in seconds
+  refreshTokenExpiration Int @default(2592000) // 30 days
+  isActive         Boolean  @default(true)
+  settings         Json?    // App-specific settings
+
+  // Relations
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions Session[]
+  tokens   Token[]
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([isActive])
+}
+
+// ============================================
+// USER MODEL - End users
+// ============================================
+model User {
+  id            String   @id @default(cuid())
+  tenantId      String
+  email         String
+  password      String?  // Hashed password (null if only SSO login)
+  name          String?
+  avatar        String?
+  emailVerified Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+  metadata      Json?    // Additional user data from SSO providers
+
+  // Relations
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  tokens       Token[]
+  identities   UserIdentity[]
+  auditLogs    AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+  @@index([isActive])
+}
+
+// ============================================
+// USER IDENTITY MODEL - SSO identities linked to user
+// ============================================
+model UserIdentity {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   // google, facebook, github, microsoft, oidc, saml, etc.
+  providerId   String   // ID from the provider
+  providerData Json?    // Profile data from provider
+  accessToken  String?  // Encrypted access token from provider
+  refreshToken String?  // Encrypted refresh token from provider
+  tokenExpiry  DateTime?
+  isActive     Boolean  @default(true)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@index([provider])
+}
+
+// ============================================
+// SSO PROVIDER MODEL - Available SSO providers
+// ============================================
+model SSOProvider {
+  id           String   @id @default(cuid())
+  name         String   // Display name
+  type         String   // oauth2, oidc, saml, social
+  provider     String   // google, facebook, github, microsoft, custom, etc.
+  authUrl      String   // Authorization endpoint
+  tokenUrl     String   // Token endpoint
+  userInfoUrl  String?  // User info endpoint
+  scopes       String   // Default scopes
+  metadata     Json?    // Provider-specific metadata
+  isActive     Boolean  @default(true)
+  isGlobal     Boolean  @default(false) // Available to all tenants
+
+  // Relations
+  tenantConfigs SSOProviderConfig[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([provider])
+  @@index([isActive])
+  @@index([isGlobal])
+}
+
+// ============================================
+// SSO PROVIDER CONFIG MODEL - Tenant-specific configurations
+// ============================================
+model SSOProviderConfig {
+  id            String   @id @default(cuid())
+  tenantId      String
+  providerId    String
+  clientId      String
+  clientSecret  String   // Encrypted
+  scopes        String?
+  redirectUri   String?  // Custom redirect URI for tenant
+  mapping       Json?    // Attribute mapping configuration
+  isActive      Boolean  @default(true)
+  priority      Int      @default(0) // Display priority
+
+  // Relations
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider SSOProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, providerId])
+  @@index([tenantId])
+  @@index([providerId])
+  @@index([isActive])
+}
+
+// ============================================
+// SESSION MODEL - Active user sessions (PostgreSQL backup)
+// ============================================
+model Session {
+  id          String   @id @default(cuid())
+  tenantId    String
+  appId       String?
+  userId      String
+  sessionId   String   @unique // Redis session key
+  ipAddress   String?
+  userAgent   String?
+  deviceInfo  Json?    // Device and browser info
+  location    Json?    // Geo-location data
+  expiresAt   DateTime
+  lastActive  DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app    App?   @relation(fields: [appId], references: [id], onDelete: SetNull)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([appId])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@index([isActive])
+}
+
+// ============================================
+// TOKEN MODEL - JWT tokens
+// ============================================
+model Token {
+  id           String   @id @default(cuid())
+  appId        String
+  userId       String
+  tokenType    String   // access_token, refresh_token, id_token
+  token        String   @unique // Hashed token
+  scope        String?
+  expiresAt    DateTime
+  isRevoked    Boolean  @default(false)
+  revokedAt    DateTime?
+  metadata     Json?    // Additional token data
+
+  // Relations
+  app  App  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([appId])
+  @@index([userId])
+  @@index([tokenType])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isRevoked])
+}
+
+// ============================================
+// AUDIT LOG MODEL - System audit trail
+// ============================================
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  appId      String?
+  userId     String?
+  action     String   // login, logout, sso_init, token_issue, token_revoke, etc.
+  resource   String?  // Resource affected
+  details    Json?    // Additional details
+  ipAddress  String?
+  userAgent  String?
+  success    Boolean  @default(true)
+  errorMessage String?
+
+  // Relations
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  app    App?    @relation(fields: [appId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([appId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([success])
+}
